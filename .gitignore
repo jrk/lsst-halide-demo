@@ -1,0 +1,5 @@
+*.dSYM
+lincombo_aot.h
+lincombo_aot.o
+linearCombination_aot_compile
+linearCombination_aot_run
