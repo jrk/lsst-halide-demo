@@ -1,13 +1,13 @@
 // On linux, you can compile and run like so:
-// g++ linearCombination_aot_compile.cpp -g -std=c++11 -I ./include -L ./bin -lHalide -lpthread -ldl -o lincombo_aot_generate
+// g++ linearCombination_aot_compile1.cpp -g -std=c++11 -I ./include -L ./bin -lHalide -lpthread -ldl -o lincombo_aot_generate
 // LD_LIBRARY_PATH=./bin ./lincombo_aot_generate
-// g++ linearCombination_aot_run.cpp lincombo_aot.o -lpthread -o lincombo_aot_run
+// g++ linearCombination_aot_run1.cpp lincombo_aot.o -lpthread -o lincombo_aot_run
 // ./lincombo_aot_run
 
 // On os x:
-// g++ linearCombination_aot_compile.cpp -g -std=c++11 -I ./include -L ./bin -lHalide -o lincombo_aot_generate
+// g++ linearCombination_aot_compile1.cpp -g -std=c++11 -I ./include -L ./bin -lHalide -o lincombo_aot_generate
 // DYLD_LIBRARY_PATH=./bin ./lincombo_aot_generate
-// g++ linearCombination_aot_run.cpp -g lincombo_aot.o -I ./include -I DarwinX86/pex_policy/10.1+1/include/ -I DarwinX86/daf_persistence/10.1+1/include/ -I DarwinX86/utils/10.1+1/include/ -I DarwinX86/daf_base/10.1+2/include/ -I DarwinX86/base/10.1+1/include/ -I DarwinX86/ndarray/10.1+2/include/ -I DarwinX86/pex_exceptions/10.1+1/include/ -I DarwinX86/eigen/3.2.0/include/ -I DarwinX86/afw/10.1+1/include -L ./bin -L DarwinX86/afw/10.1+1/lib -L DarwinX86/daf_base/10.1+2/lib/ -L DarwinX86/daf_persistence/10.1+1/lib/ -L DarwinX86/boost/1.55.0.1.lsst2+3/lib/ -lHalide -lafw -ldaf_base -ldaf_persistence -lboost_system `libpng-config --cflags --ldflags` -o lincombo_aot_run -std=c++11
+// g++ linearCombination_aot_run1.cpp -g lincombo_aot.o -I ./include -I DarwinX86/pex_policy/10.1+1/include/ -I DarwinX86/daf_persistence/10.1+1/include/ -I DarwinX86/utils/10.1+1/include/ -I DarwinX86/daf_base/10.1+2/include/ -I DarwinX86/base/10.1+1/include/ -I DarwinX86/ndarray/10.1+2/include/ -I DarwinX86/pex_exceptions/10.1+1/include/ -I DarwinX86/eigen/3.2.0/include/ -I DarwinX86/afw/10.1+1/include -L ./bin -L DarwinX86/afw/10.1+1/lib -L DarwinX86/daf_base/10.1+2/lib/ -L DarwinX86/daf_persistence/10.1+1/lib/ -L DarwinX86/boost/1.55.0.1.lsst2+3/lib/ -lHalide -lafw -ldaf_base -ldaf_persistence -lboost_system `libpng-config --cflags --ldflags` -o lincombo_aot_run -std=c++11
 // DYLD_LIBRARY_PATH=./bin:DarwinX86/afw/10.1+1/lib/:DarwinX86/daf_persistence/10.1+1/lib/:DarwinX86/daf_base/10.1+2/lib/:DarwinX86/boost/1.55.0.1.lsst2+3/lib/:DarwinX86/xpa/2.1.15.lsst2/lib/:DarwinX86/pex_policy/10.1+1/lib/:DarwinX86/pex_logging/10.1+1/lib/:DarwinX86/utils/10.1+1/lib/:DarwinX86/pex_exceptions/10.1+1/lib/:DarwinX86/base/10.1+1/lib/ ./lincombo_aot_run
 
 
@@ -60,26 +60,27 @@ int main(int argc, char *argv[]) {
     Var x, y, i, j, y0, yi;
     float pi = 3.14159265359f;
 
+
     Func polynomials[num_kernels];
     for(int k = 0; k < num_kernels; k++){
-        polynomials[k](x, y) = polynomialCoefficients(0,k) + 
-            polynomialCoefficients(1,k)*x + polynomialCoefficients(2,k)*y +
-            polynomialCoefficients(3,k)*x*x + polynomialCoefficients(4,k)*x*y + 
-            polynomialCoefficients(5,k)*y*y + polynomialCoefficients(6,k)*x*x*x +
-            polynomialCoefficients(7,k)*x*x*y + polynomialCoefficients(8,k)*x*y*y
-            + polynomialCoefficients(9,k)*y*y*y;
+        polynomials[k](x, y) = 1.0f + 
+            1.0f*x + 1.0f*y +
+            1.0f*x*x + 1.0f*x*y + 
+            1.0f*y*y + 1.0f*x*x*x +
+            1.0f*x*x*y + 1.0f*x*y*y
+            + 1.0f*y*y*y;
     }
 
     Func kernels[num_kernels];
 
     for(int k = 0; k < num_kernels; k++){
-        kernels[k](i, j) = exp(-((i*cos(kerParams(2,k)) + j*sin(kerParams(2,k)))*
-                    (i*cos(kerParams(2,k)) + j*sin(kerParams(2,k))))
-                    / (2*kerParams(0,k)*kerParams(0,k))
-                    -((j*cos(kerParams(2,k)) - i*sin(kerParams(2,k)))*
-                    (j*cos(kerParams(2,k)) - i*sin(kerParams(2,k))))
-                    / (2*kerParams(1,k)*kerParams(1,k))) /
-                    (2.0f*pi*kerParams(0,k)*kerParams(1,k));
+        kernels[k](i, j) = exp(-((i*cos(1.0f) + j*sin(1.0f))*
+                    (i*cos(1.0f) + j*sin(1.0f)))
+                    / (2*1.0f*1.0f)
+                    -((j*cos(1.0f) - i*sin(1.0f))*
+                    (j*cos(1.0f) - i*sin(1.0f)))
+                    / (2*1.0f*1.0f)) /
+                    (2.0f*pi*1.0f*1.0f);
     }
 
 
@@ -101,9 +102,9 @@ int main(int argc, char *argv[]) {
     Func maskOut ("maskOut");
     Expr maskOutHelp = cast<uint16_t>(0);
 
-    Expr curKernelVal = 0.0f;
     for(int i = -boundingBox; i <= boundingBox; i++){
         for(int j = -boundingBox; j <= boundingBox; j++){
+            Expr curKernelVal = 0.0f;
             for(int k = 0; k < num_kernels; k++){
                 curKernelVal += polynomials[k](x, y)*kernels[k](i, j);
             }
