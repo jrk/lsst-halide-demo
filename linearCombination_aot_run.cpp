@@ -1,7 +1,6 @@
-//To compile and run:
-//Look in linearCombination_aot_compile.cpp
-
-//#define USE_LSST
+//#define USE_LSST to build with FITS IO from the LSST stack
+// This will likely require setting additional include and link flags
+// to build this final program.
 #ifdef USE_LSST
 #include "lsst/afw/image.h"
 namespace afwImage = lsst::afw::image;
@@ -18,7 +17,6 @@ using namespace std;
 // process.  We just include it here like any other C header.
 #include "lincombo_aot.h"
 
-
 /*
  * This file serves of an example of how to use an "ahead of time"
  * compiled Halide pipeline in an application.  The compilation
@@ -28,6 +26,75 @@ using namespace std;
  *
  */
 
+/*
+ * The raw interface to Halide-compiled pipelines, declared in the generated
+ * lincombo_aot.h header, passes memory arrays along with a simple description
+ * of their layout, using a struct called buffer_t. A buffer_t is just an
+ * untyped pointer to start of the data (`.host`), an optional pointer to a
+ * corresponding GPU buffer (`.dev`), and a simple description of the layout
+ * of up to a four dimensional grid in the pointed-to arrays:
+ *
+ *   elem_size specifies the size of a single element, e.g., sizeof(float)
+ *
+ *   stride[4] gives the stride for each dimension
+ *
+ *   extent[4] gives the extent (maximum coordinate) of each dimension
+ *
+ *   min[0] gives the minimum coordinate of each dimension (useful if the
+ *          logical coordinates describe a crop into a larger virtual image)
+ *
+ * To access pixel (x, y) in a two-dimensional buffer_t, Halide
+ * looks at memory address:
+ *
+ *    host + elem_size * ((x - min[0])*stride[0] + (y - min[1])*stride[1])
+ *
+ * This generalizes up to four dimensions. (A future release will generalize
+ * it to arbitrary dimensions.)
+ *
+ * makeBuffer is a trivial helper function we use here to construct the 
+ * buffer descriptors for this example. There are other helper classes in
+ * other code (Cf. `halide_image.h` in the Halide `tools` folder). For 
+ * integration with your own custom image objects like afwImage, you would
+ * presumably create your own helpers.
+ */
+template <typename T>
+buffer_t makeBuffer(int width, int height, uint8_t* data) {
+    buffer_t buf = {0}; // initialize everything to 0
+
+    // The host pointers point to the start of the image data:
+    // buf.host = reinterpret_cast<uint8_t*>(data);
+    buf.host = data;
+
+    // The stride in a dimension represents the number of elements in
+    // memory between adjacent entries in that dimension. We have a
+    // grayscale image stored in scanline order, so stride[0] is 1,
+    // because pixels that are adjacent in x are next to each other in
+    // memory.
+    buf.stride[0] = 1;
+
+    // stride[1] is the width of the image, because pixels that are
+    // adjacent in y are separated by a scanline's worth of pixels in
+    // memory.
+    buf.stride[1] = width;
+    
+    // buf.stride[2] = width*height..., but unnecessary for this example
+
+    // The extent tells us how large the image is in each dimension.
+    buf.extent[0] = width;
+    buf.extent[1] = height;
+
+    // We'll leave the mins as zero. This is what they typically
+    // are. The host pointer points to the memory location of the min
+    // coordinate (not the origin!).  See lesson 6 for more detail
+    // about the mins.
+
+    // The elem_size field tells us how many bytes each element
+    // uses. This is 4 for floats and 2 for type uint16_t
+    buf.elem_size = sizeof(T);
+        
+    return buf;
+}
+
 int main(int argc, char *argv[]) {
 
     //the precompiled Halide pipeline we are using expects 5 kernels
@@ -35,7 +102,6 @@ int main(int argc, char *argv[]) {
     const int num_kernels = 5;
     const int num_poly_coeff = 10;
     const int num_kernel_params = 3;
-
 
 #ifdef USE_LSST
     auto im = afwImage::MaskedImage<float>("./images/calexp-004207-g3-0123.fits");
@@ -53,6 +119,10 @@ int main(int argc, char *argv[]) {
 #ifdef USE_LSST
     //Read image, converting all three planes to uint8_t arrays
     //for passing to the aot compiled Halide
+    // This is unnecessary, given a pointer to the raw arrays
+    // underlying the afwImage; it should be easily possible to
+    // directly wrap those in buffer_t structs for passing straight
+    // into the Halide-generated pipeline.
     float curImage;
     float curVariance;
     uint16_t curMask;
@@ -85,9 +155,8 @@ int main(int argc, char *argv[]) {
     }
 #endif
 
-
     // Have a look in the header file above (it won't exist until you've run
-    // lesson_10_generate).
+    // linearCombination_aot_compile).
 
     // It starts with a definition of a buffer_t:
     //
@@ -108,7 +177,6 @@ int main(int argc, char *argv[]) {
     // pixels, and some fields related to using the GPU that we'll ignore
     // for now (dev, host_dirty, dev_dirty).
 
-
     //Let's allocate the memory where we want to write our output:
     //for every pixel we need 4 image bytes, 4 variance bytes, and 2 mask bytes
     uint8_t *image_output = new uint8_t[width*height*4];
@@ -126,86 +194,15 @@ int main(int argc, char *argv[]) {
     // you. You should use whatever image data type makes sense for
     // your application. Halide just needs pointers to it.
 
-    // Now we make a buffer_t to represent our input and output. It's
-    // important to zero-initialize them so you don't end up with
-    // garbage fields that confuse Halide.
-    buffer_t image_buf = {0};
-    buffer_t variance_buf = {0};
-    buffer_t mask_buf = {0};
-    buffer_t poly_coef_buf = {0};
-    buffer_t ker_params_buf = {0};
-    buffer_t image_output_buf = {0};
-    buffer_t variance_output_buf = {0};
-    buffer_t mask_output_buf = {0};
-
-    // The host pointers point to the start of the image data:
-    image_buf.host  = &image[0];
-    variance_buf.host  = &variance[0];
-    mask_buf.host  = &mask[0];
-    poly_coef_buf.host = &polynomial_coefficients[0];
-    ker_params_buf.host = &ker_params[0];
-    image_output_buf.host = &image_output[0];
-    variance_output_buf.host = &variance_output[0];
-    mask_output_buf.host = &mask_output[0];
-
-    // To access pixel (x, y) in a two-dimensional buffer_t, Halide
-    // looks at memory address:
-
-    // host + elem_size * ((x - min[0])*stride[0] + (y - min[1])*stride[1])
-
-    // The stride in a dimension represents the number of elements in
-    // memory between adjacent entries in that dimension. We have a
-    // grayscale image stored in scanline order, so stride[0] is 1,
-    // because pixels that are adjacent in x are next to each other in
-    // memory.
-    image_buf.stride[0] = variance_buf.stride[0] = mask_buf.stride[0] = 1;
-    image_output_buf.stride[0] = variance_output_buf.stride[0] = 1;
-    mask_output_buf.stride[0] = 1;
-    poly_coef_buf.stride[0] = ker_params_buf.stride[0] = 1;
-
-    // stride[1] is the width of the image, because pixels that are
-    // adjacent in y are separated by a scanline's worth of pixels in
-    // memory.
-    image_buf.stride[1] = variance_buf.stride[1] = mask_buf.stride[1] = width;
-    image_output_buf.stride[1] = variance_output_buf.stride[1] = width;
-    mask_output_buf.stride[1] = width;
-    //we are storing polynomial coefficients as poly_coef_buf(coef#, kernel#)
-    poly_coef_buf.stride[1] = num_poly_coeff;
-    //we are storing kernel parameters as ker_params_buf(param#, kernel#)
-    ker_params_buf.stride[1] = num_kernel_params;
-
-
-    // The extent tells us how large the image is in each dimension.
-    image_buf.extent[0] = variance_buf.extent[0] = mask_buf.extent[0] = width;
-    image_output_buf.extent[0] = variance_output_buf.extent[0] = width;
-    mask_output_buf.extent[0] = width;
-    poly_coef_buf.extent[0] = num_poly_coeff;
-    ker_params_buf.extent[0] = num_kernel_params;
-
-    image_buf.extent[1] = variance_buf.extent[1] = mask_buf.extent[1] = height;
-    image_output_buf.extent[1] = variance_output_buf.extent[1] = height;
-    mask_output_buf.extent[1] = height;
-    poly_coef_buf.extent[1] = num_kernels;
-    ker_params_buf.extent[1] = num_kernels;
-
-    // We'll leave the mins as zero. This is what they typically
-    // are. The host pointer points to the memory location of the min
-    // coordinate (not the origin!).  See lesson 6 for more detail
-    // about the mins.
-
-    // The elem_size field tells us how many bytes each element
-    // uses. This is 4 for floats and 2 for type uint16_t
-    image_buf.elem_size = variance_buf.elem_size = sizeof(float);
-    mask_buf.elem_size = sizeof(uint16_t);
-
-    image_output_buf.elem_size = variance_output_buf.elem_size = sizeof(float);
-    mask_output_buf.elem_size = sizeof(uint16_t);
-
-    poly_coef_buf.elem_size = ker_params_buf.elem_size = sizeof(float);
-
-    // To avoid repeating all the boilerplate above, We recommend you
-    // make a helper function that populates a buffer_t given whatever
-    // image type you're using.
+    // Now we make a buffer_t to represent our input and output.
+    buffer_t image_buf = makeBuffer<float>(width, height, &image[0]);
+    buffer_t variance_buf = makeBuffer<float>(width, height, &variance[0]);
+    buffer_t mask_buf = makeBuffer<uint16_t>(width, height, &mask[0]);
+    buffer_t poly_coef_buf = makeBuffer<float>(num_poly_coeff, num_kernels, &polynomial_coefficients[0]);
+    buffer_t ker_params_buf = makeBuffer<float>(num_kernel_params, num_kernels, &ker_params[0]);
+    buffer_t image_output_buf = makeBuffer<float>(width, height, &image_output[0]);
+    buffer_t variance_output_buf = makeBuffer<float>(width, height, &variance_output[0]);
+    buffer_t mask_output_buf = makeBuffer<uint16_t>(width, height, &mask_output[0]);
 
     //Now we set the polynomial coeffecients
     float curCoef;
@@ -244,17 +241,15 @@ int main(int argc, char *argv[]) {
         }
     }
 
-
-
     // Now that we've setup all input and output buffers, it is now
     // time to call the main entrypoint function for the Halide
     // pipeline. Looking in the header file, it's signature is:
-
-    // int test_aot(buffer_t *_input, const int32_t _offset, buffer_t *_brighter);
+    // 
     // int lincombo_aot(buffer_t *_image_buffer, buffer_t *_variance_buffer,
     //    buffer_t *_mask_buffer, buffer_t *_polynomialCoefficients_buffer,
     //    buffer_t *_kerParams_buffer, buffer_t *_combined_output_0_buffer,
     //    buffer_t *_combined_output_1_buffer, buffer_t *_combined_output_2_buffer);
+    //
     // The return value is an error code. It's zero on success.
 
     int error = lincombo_aot(&image_buf, &variance_buf, &mask_buf, &poly_coef_buf,
