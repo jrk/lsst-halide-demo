@@ -14,9 +14,7 @@ namespace afwMath  = lsst::afw::math;
 #include <iostream>
 using namespace std;
 
-#include "lincombo_aot.h"
-
-
+#include "lincombo_aot.h" // include the interface to the generated code
 
 void zero_buf_t(buffer_t &buf){
     buf.dev = 0;
@@ -38,7 +36,6 @@ void zero_buf_t(buffer_t &buf){
     buf.dev_dirty = 0;
 
 }
-
 
 int main(int argc, char *argv[]) {
 
@@ -206,17 +203,24 @@ int main(int argc, char *argv[]) {
     // our function. Looking in the header file, it's signature is:
 
     // int test_aot(buffer_t *_input, const int32_t _offset, buffer_t *_brighter);
+    
+    float polynomial_coefficients[10*5];    
+    buffer_t polynomial_coefficients_buf = {0};
+    polynomial_coefficients_buf.elem_size = sizeof(float);
+    polynomial_coefficients_buf.stride[0] = 1;
+    polynomial_coefficients_buf.stride[1] = 10;
+    polynomial_coefficients_buf.extent[0] = 10;
+    polynomial_coefficients_buf.extent[1] = 5;
+    polynomial_coefficients_buf.host = (uint8_t*)&polynomial_coefficients[0];
 
-    // The return value is an error code. It's zero on success.
-
-    int error = lincombo_aot(&image_buf, &variance_buf, &mask_buf,
-                    &image_output_buf, &variance_output_buf, &mask_output_buf);
-
-    if (error) {
-        printf("Halide returned an error: %d\n", error);
-        return -1;
-    }
-
+    float kernel_params[3*5];
+    buffer_t kernel_params_buf = {0};
+    kernel_params_buf.elem_size = sizeof(float);
+    kernel_params_buf.stride[0] = 1;
+    kernel_params_buf.stride[1] = 3;
+    kernel_params_buf.extent[0] = 3;
+    kernel_params_buf.extent[1] = 5;
+    kernel_params_buf.host = (uint8_t*)&kernel_params[0];
 
     // Benchmark the pipeline.
     double mean = 0;
@@ -225,9 +229,17 @@ int main(int argc, char *argv[]) {
     int numberOfRuns = 5;
     for (int i = 0; i < numberOfRuns; i++) {
         double t1 = current_time();
-        error = lincombo_aot(&image_buf, &variance_buf, &mask_buf,
-                    &image_output_buf, &variance_output_buf, &mask_output_buf);
+        // The return value is an error code. It's zero on success.
+        int error = lincombo_aot(&image_buf, &variance_buf, &mask_buf,
+                                 &polynomial_coefficients_buf, &kernel_params_buf,
+                                 &image_output_buf,
+                                 &variance_output_buf,
+                                 &mask_output_buf);
         double t2 = current_time();
+        if (error) {
+            printf("The generated Halide code returned an error: %d\n", error);
+            return -1;
+        }
         double curTime = (t2-t1);
         mean += curTime;
         if(i == 0){

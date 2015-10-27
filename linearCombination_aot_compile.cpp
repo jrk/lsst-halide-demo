@@ -1,16 +1,3 @@
-// On linux, you can compile and run like so:
-// g++ linearCombination_aot_compile.cpp -g -std=c++11 -I ./include -L ./bin -lHalide -lpthread -ldl -o lincombo_aot_generate
-// LD_LIBRARY_PATH=./bin ./lincombo_aot_generate
-// g++ linearCombination_aot_run.cpp lincombo_aot.o -lpthread -o lincombo_aot_run
-// ./lincombo_aot_run
-
-// On os x:
-// g++ linearCombination_aot_compile.cpp -g -std=c++11 -I ./include -L ./bin -lHalide -o lincombo_aot_generate
-// DYLD_LIBRARY_PATH=./bin ./lincombo_aot_generate
-// g++ linearCombination_aot_run.cpp -g lincombo_aot.o -I ./include -I DarwinX86/pex_policy/10.1+1/include/ -I DarwinX86/daf_persistence/10.1+1/include/ -I DarwinX86/utils/10.1+1/include/ -I DarwinX86/daf_base/10.1+2/include/ -I DarwinX86/base/10.1+1/include/ -I DarwinX86/ndarray/10.1+2/include/ -I DarwinX86/pex_exceptions/10.1+1/include/ -I DarwinX86/eigen/3.2.0/include/ -I DarwinX86/afw/10.1+1/include -L ./bin -L DarwinX86/afw/10.1+1/lib -L DarwinX86/daf_base/10.1+2/lib/ -L DarwinX86/daf_persistence/10.1+1/lib/ -L DarwinX86/boost/1.55.0.1.lsst2+3/lib/ -lHalide -lafw -ldaf_base -ldaf_persistence -lboost_system `libpng-config --cflags --ldflags` -o lincombo_aot_run -std=c++11
-// DYLD_LIBRARY_PATH=./bin:DarwinX86/afw/10.1+1/lib/:DarwinX86/daf_persistence/10.1+1/lib/:DarwinX86/daf_base/10.1+2/lib/:DarwinX86/boost/1.55.0.1.lsst2+3/lib/:DarwinX86/xpa/2.1.15.lsst2/lib/:DarwinX86/pex_policy/10.1+1/lib/:DarwinX86/pex_logging/10.1+1/lib/:DarwinX86/utils/10.1+1/lib/:DarwinX86/pex_exceptions/10.1+1/lib/:DarwinX86/base/10.1+1/lib/ ./lincombo_aot_run
-
-
 #include <stdio.h>
 #include <Halide.h>
 #include <bitset>
@@ -37,24 +24,24 @@ int main(int argc, char *argv[]) {
 
     Func polynomials[num_kernels];
     for(int k = 0; k < num_kernels; k++){
-        polynomials[k](x, y) = polynomialCoefficients(k,0) + 
-            polynomialCoefficients(k,1)*x + polynomialCoefficients(k,2)*y +
-            polynomialCoefficients(k,3)*x*x + polynomialCoefficients(k,4)*x*y + 
-            polynomialCoefficients(k,5)*y*y + polynomialCoefficients(k,6)*x*x*x +
-            polynomialCoefficients(k,7)*x*x*y + polynomialCoefficients(k,8)*x*y*y
-            + polynomialCoefficients(k,9)*y*y*y;
+        polynomials[k](x, y) = polynomialCoefficients(0,k) + 
+            polynomialCoefficients(1,k)*x + polynomialCoefficients(2,k)*y +
+            polynomialCoefficients(3,k)*x*x + polynomialCoefficients(4,k)*x*y + 
+            polynomialCoefficients(5,k)*y*y + polynomialCoefficients(6,k)*x*x*x +
+            polynomialCoefficients(7,k)*x*x*y + polynomialCoefficients(8,k)*x*y*y
+            + polynomialCoefficients(9,k)*y*y*y;
     }
 
     Func kernels[num_kernels];
     Var i,j;
     for(int k = 0; k < num_kernels; k++){
-        kernels[k](i, j) = exp(-((i*cos(kerParams(k,2)) + j*sin(kerParams(k,2)))*
-                    (i*cos(kerParams(k,2)) + j*sin(kerParams(k,2))))
-                    / (2*kerParams(k,0)*kerParams(k,0))
-                    -((j*cos(kerParams(k,2)) - i*sin(kerParams(k,2)))*
-                    (j*cos(kerParams(k,2)) - i*sin(kerParams(k,2))))
-                    / (2*kerParams(k,1)*kerParams(k,1))) /
-                    (2.0f*pi*kerParams(k,0)*kerParams(k,1));
+        kernels[k](i, j) = exp(-((i*cos(kerParams(2,k)) + j*sin(kerParams(2,k)))*
+                    (i*cos(kerParams(2,k)) + j*sin(kerParams(2,k))))
+                    / (2*kerParams(0,k)*kerParams(0,k))
+                    -((j*cos(kerParams(2,k)) - i*sin(kerParams(2,k)))*
+                    (j*cos(kerParams(2,k)) - i*sin(kerParams(2,k))))
+                    / (2*kerParams(1,k)*kerParams(1,k))) /
+                    (2.0f*pi*kerParams(0,k)*kerParams(1,k));
     }
 
 
@@ -103,7 +90,8 @@ int main(int argc, char *argv[]) {
     // Vectorize across x by a factor of eight.
     combined_output.vectorize(x, 8);
 
-    std::vector<Argument> args = {image, variance, mask, polynomialCoefficients, kerParams};
+    std::vector<Argument> args = {image, variance, mask, 
+                                  polynomialCoefficients, kerParams};
     combined_output.compile_to_file("lincombo_aot", args);
 
     printf("Halide pipeline compiled, but not yet run.\n");
