@@ -21,3 +21,6 @@ lincombo_aot.o: linearCombination_aot_compile
 
 linearCombination_aot_run: linearCombination_aot_run.cpp lincombo_aot.o
 	$(CXX) $^ -g -o $@
+
+run: linearCombination_aot_run
+	./linearCombination_aot_run
