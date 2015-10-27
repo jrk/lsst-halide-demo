@@ -20,4 +20,4 @@ lincombo_aot.o: linearCombination_aot_compile
 	DYLD_LIBRARY_PATH=${HALIDE_LIB} ./linearCombination_aot_compile
 
 linearCombination_aot_run: linearCombination_aot_run.cpp lincombo_aot.o
-	$(CXX) $^ -DSTANDALONE -g -o $@
+	$(CXX) $^ -g -o $@
