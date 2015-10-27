@@ -7,14 +7,6 @@ HALIDE_CFLAGS ?= -std=c++11 -I ${HALIDE_INCLUDE} -L ${HALIDE_LIB} -lHalide
 
 .PHONY: clean
 
-#need to fix this, not working
-#-g is for debugging, check whether it should be in both statements
-#%.standalone1: %.o
-#	$(CXX) $(CFLAGS) -DSTANDALONE $< -g -o $@
-#
-#%.o: %.cpp %.h
-#	$(CXX) $(CFLAGS) -DSTANDALONE $< -g -c $@
-
 linearCombination_aot_compile: linearCombination_aot_compile.cpp
 	$(CXX) $(HALIDE_CFLAGS) $< -g -o $@
 
