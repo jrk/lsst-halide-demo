@@ -195,13 +195,13 @@ int main(int argc, char *argv[]) {
 
     // The elem_size field tells us how many bytes each element
     // uses. This is 4 for floats and 2 for type uint16_t
-    image_buf.elem_size = variance_buf.elem_size = 4;
-    mask_buf.elem_size = 2;
+    image_buf.elem_size = variance_buf.elem_size = sizeof(float);
+    mask_buf.elem_size = sizeof(uint16_t);
 
-    image_output_buf.elem_size = variance_output_buf.elem_size = 4;
-    mask_output_buf.elem_size = 2;
+    image_output_buf.elem_size = variance_output_buf.elem_size = sizeof(float);
+    mask_output_buf.elem_size = sizeof(uint16_t);
 
-    poly_coef_buf.elem_size = ker_params_buf.elem_size = 4;
+    poly_coef_buf.elem_size = ker_params_buf.elem_size = sizeof(float);
 
     // To avoid repeating all the boilerplate above, We recommend you
     // make a helper function that populates a buffer_t given whatever
