@@ -1,3 +1,33 @@
+// On linux, you can compile and run like so:
+// g++ linearCombination_aot_compile.cpp -g -std=c++11 -I ./include -L ./bin -lHalide -lpthread -ldl -o lincombo_aot_generate
+// LD_LIBRARY_PATH=./bin ./lincombo_aot_generate
+// g++ linearCombination_aot_run.cpp lincombo_aot.o -lpthread -o lincombo_aot_run
+// ./lincombo_aot_run
+
+// On os x:
+// g++ linearCombination_aot_compile.cpp -g -std=c++11 -I ./include -L ./bin -lHalide -o lincombo_aot_generate
+// DYLD_LIBRARY_PATH=./bin ./lincombo_aot_generate
+// g++ linearCombination_aot_run.cpp -g lincombo_aot.o -I ./include -I DarwinX86/pex_policy/10.1+1/include/ -I DarwinX86/daf_persistence/10.1+1/include/ -I DarwinX86/utils/10.1+1/include/ -I DarwinX86/daf_base/10.1+2/include/ -I DarwinX86/base/10.1+1/include/ -I DarwinX86/ndarray/10.1+2/include/ -I DarwinX86/pex_exceptions/10.1+1/include/ -I DarwinX86/eigen/3.2.0/include/ -I DarwinX86/afw/10.1+1/include -L ./bin -L DarwinX86/afw/10.1+1/lib -L DarwinX86/daf_base/10.1+2/lib/ -L DarwinX86/daf_persistence/10.1+1/lib/ -L DarwinX86/boost/1.55.0.1.lsst2+3/lib/ -lHalide -lafw -ldaf_base -ldaf_persistence -lboost_system `libpng-config --cflags --ldflags` -o lincombo_aot_run -std=c++11
+// DYLD_LIBRARY_PATH=./bin:DarwinX86/afw/10.1+1/lib/:DarwinX86/daf_persistence/10.1+1/lib/:DarwinX86/daf_base/10.1+2/lib/:DarwinX86/boost/1.55.0.1.lsst2+3/lib/:DarwinX86/xpa/2.1.15.lsst2/lib/:DarwinX86/pex_policy/10.1+1/lib/:DarwinX86/pex_logging/10.1+1/lib/:DarwinX86/utils/10.1+1/lib/:DarwinX86/pex_exceptions/10.1+1/lib/:DarwinX86/base/10.1+1/lib/ ./lincombo_aot_run
+
+
+
+/*
+ *
+ * This file serves of an example of how to perform "ahead of time"
+ * (AOT) compilation of Halide pipelines for later use by other
+ * applications.
+ *
+ * The code defines a Halide pipeline and its accompanying schedule,
+ * and then compiles the resulting pipeline to a object file and
+ * associated C header file. The object file can then be linked into
+ * any application that wishes to use the resulting Halide pipeline.
+ *
+ * The Halide pipeline uses a spatial varying convolution kernel
+ * formed from the weighted combination of 5 basis kernels.
+ *
+ */
+
 #include <stdio.h>
 #include <Halide.h>
 #include <bitset>
@@ -7,19 +37,27 @@ using namespace Halide;
 int main(int argc, char *argv[]) {
 
     const int num_kernels = 5;
-    
+
     ImageParam image(type_of<float>(), 2);
     ImageParam variance(type_of<float>(), 2);
     ImageParam mask(type_of<uint16_t>(), 2);
 
-    ImageParam polynomialCoefficients(type_of<float>(), 2); //array with dimension [5][10]
-    //Kernel parameters array with dimensions [5][3]
-    //second dimension: sigmaX, sigmaY, theta
+    ImageParam polynomialCoefficients(type_of<float>(), 2); //array with dimension [10][5]
+    //Kernel parameters array with dimensions [3][5]
+    //first dimension: sigmaX, sigmaY, theta
     ImageParam kerParams(type_of<float>(), 2);
 
+
+    /*
+     *
+     * First define the Halide pipeline.  This is the functional
+     * specification of the image processing algorithm.
+     *
+     */
+
     //Kernel has dimensions (boundingBox*2 + 1) x (boundingBox*2 + 1)
-    int boundingBox = 2; 
-    Var x, y, y0, yi;
+    int boundingBox = 2;
+    Var x, y, i, j, y0, yi;
     float pi = 3.14159265359f;
 
     Func polynomials[num_kernels];
@@ -33,7 +71,7 @@ int main(int argc, char *argv[]) {
     }
 
     Func kernels[num_kernels];
-    Var i,j;
+
     for(int k = 0; k < num_kernels; k++){
         kernels[k](i, j) = exp(-((i*cos(kerParams(2,k)) + j*sin(kerParams(2,k)))*
                     (i*cos(kerParams(2,k)) + j*sin(kerParams(2,k))))
@@ -69,8 +107,8 @@ int main(int argc, char *argv[]) {
             for(int k = 0; k < num_kernels; k++){
                 curKernelVal += polynomials[k](x, y)*kernels[k](i, j);
             }
-            blur_image_help += image_bounded(x + i, y + j)*curKernelVal; 
-            blur_variance_help += variance_bounded(x + i, y + j)*curKernelVal*curKernelVal; 
+            blur_image_help += image_bounded(x + i, y + j)*curKernelVal;
+            blur_variance_help += variance_bounded(x + i, y + j)*curKernelVal*curKernelVal;
             maskOutHelp = select(curKernelVal == 0.0f, maskOutHelp,
                                 maskOutHelp | mask_bounded(x + i, y + j));
             norm += curKernelVal;
@@ -83,18 +121,37 @@ int main(int argc, char *argv[]) {
     Func combined_output ("combined_output");
     combined_output(x, y) = Tuple(blur_image_help, blur_variance_help, maskOutHelp);
 
+    /*
+     *
+     * Here is the definition of the Halide schedule.  The schedule
+     * describes how to implement the kernel described above.
+     *
+     */
+
     // Split the y coordinate of the output into strips of 32 scanlines:
     combined_output.split(y, y0, yi, 32);
-    // Compute the strips using a thread pool and a task queue.
+
+    // Compute the strips in parallel using all the machines
+    // cores. (You can think of processing a strip as a job that
+    // placed task queue, and serviced by a bunch of worker threads).
     combined_output.parallel(y0);
-    // Vectorize across x by a factor of eight.
+
+    // Vectorize across x loop by a factor of eight.
     combined_output.vectorize(x, 8);
 
-    std::vector<Argument> args = {image, variance, mask, 
-                                  polynomialCoefficients, kerParams};
+
+    /*
+     *
+     * The statement below generates the .o file (and .h) for the
+     * Halide kernel that can be linked against by other applications.
+     *
+     */
+
+
+    std::vector<Argument> args = {image, variance, mask, polynomialCoefficients, kerParams};
     combined_output.compile_to_file("lincombo_aot", args);
 
-    printf("Halide pipeline compiled, but not yet run.\n");
+    printf("Halide pipeline has been compiled.  You can now link against the resulting .o\n");
 
     return 0;
 
