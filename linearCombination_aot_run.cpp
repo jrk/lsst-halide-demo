@@ -213,12 +213,14 @@ int main(int argc, char *argv[]) {
 
     //we are storing polynomial coefficients as poly_coef_buf(coef#, kernel#)
     for (int y = 1; y <= num_kernels; y++) {
+        int yy = y-1;
         for (int x = 1; x <= num_poly_coeff; x++){
+            int xx = x-1;
             curCoef = (float)y + ((float)x)/1000.0f;
             curCoefUInt8Array = reinterpret_cast<uint8_t*>(&curCoef);
 
             for(int i = 0; i < 4; i++){
-                polynomial_coefficients[(y*num_poly_coeff + x)*4 + i] =
+                polynomial_coefficients[(yy*num_poly_coeff + xx)*4 + i] =
                     curCoefUInt8Array[i];
             }
         }
@@ -230,16 +232,17 @@ int main(int argc, char *argv[]) {
 
     //we are storing kernel parameters as ker_params_buf(param#, kernel#)
     for (int y = 1; y <= num_kernels; y++) {
+        int yy = y - 1;
         for (int x = 1; x <= num_kernel_params; x++){
+            int xx = x - 1;
             curParam = (float)y + ((float)x)/1000.0f;
             curParamUInt8Array = reinterpret_cast<uint8_t*>(&curParam);
 
             for(int i = 0; i < 4; i++){
-                ker_params[(y*num_kernel_params + x)*4 + i] = curParamUInt8Array[i];
+                ker_params[(yy*num_kernel_params + xx)*4 + i] = curParamUInt8Array[i];
             }
         }
     }
-
 
 
 
