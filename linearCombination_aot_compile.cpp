@@ -119,7 +119,8 @@ int main(int argc, char *argv[]) {
 
     // Compute the strips in parallel using all the machines
     // cores. (You can think of processing a strip as a job that
-    // placed task queue, and serviced by a bunch of worker threads).
+    // placed in a task queue. The task queue is serviced by a bunch
+    // of worker threads).
     combined_output.parallel(y0);
 
     // Vectorize across x loop by a factor of eight.
