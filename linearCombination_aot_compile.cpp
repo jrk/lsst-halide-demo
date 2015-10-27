@@ -49,9 +49,9 @@ int main(int argc, char *argv[]) {
 
     Func polynomials[num_kernels];
     for(int k = 0; k < num_kernels; k++){
-        polynomials[k](x, y) = polynomialCoefficients(0,k) + 
+        polynomials[k](x, y) = polynomialCoefficients(0,k) +
             polynomialCoefficients(1,k)*x + polynomialCoefficients(2,k)*y +
-            polynomialCoefficients(3,k)*x*x + polynomialCoefficients(4,k)*x*y + 
+            polynomialCoefficients(3,k)*x*x + polynomialCoefficients(4,k)*x*y +
             polynomialCoefficients(5,k)*y*y + polynomialCoefficients(6,k)*x*x*x +
             polynomialCoefficients(7,k)*x*x*y + polynomialCoefficients(8,k)*x*y*y
             + polynomialCoefficients(9,k)*y*y*y;
@@ -137,7 +137,7 @@ int main(int argc, char *argv[]) {
     std::vector<Argument> args = {image, variance, mask, polynomialCoefficients, kerParams};
     combined_output.compile_to_file("lincombo_aot", args);
 
-    printf("Halide pipeline has been compiled.  You can now link against the resulting .o\n");
+    printf("Halide pipeline has been compiled into a linkable object file.\n");
 
     return 0;
 

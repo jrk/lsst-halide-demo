@@ -10,11 +10,13 @@ HALIDE_CFLAGS ?= -std=c++11 -I ${HALIDE_INCLUDE} -L ${HALIDE_LIB} -lHalide
 linearCombination_aot_compile: linearCombination_aot_compile.cpp
 	$(CXX) $(HALIDE_CFLAGS) $< -g -o $@
 
-lincombo_aot.o: linearCombination_aot_compile
-	DYLD_LIBRARY_PATH=${HALIDE_LIB} ./linearCombination_aot_compile
-
 linearCombination_aot_run: linearCombination_aot_run.cpp lincombo_aot.o
+	@echo "Compiling application, linking against Halide kernel..."
 	$(CXX) $^ -g -o $@
+
+lincombo_aot.o: linearCombination_aot_compile
+	@echo "Generating Halide kernel..."
+	DYLD_LIBRARY_PATH=${HALIDE_LIB} ./linearCombination_aot_compile
 
 run: linearCombination_aot_run
 	./linearCombination_aot_run

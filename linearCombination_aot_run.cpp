@@ -55,9 +55,9 @@ using namespace std;
  * This generalizes up to four dimensions. (A future release will generalize
  * it to arbitrary dimensions.)
  *
- * makeBuffer is a trivial helper function we use here to construct the 
+ * makeBuffer is a trivial helper function we use here to construct the
  * buffer descriptors for this example. There are other helper classes in
- * other code (Cf. `halide_image.h` in the Halide `tools` folder). For 
+ * other code (Cf. `halide_image.h` in the Halide `tools` folder). For
  * integration with your own custom image objects like afwImage, you would
  * presumably create your own helpers.
  */
@@ -79,7 +79,7 @@ buffer_t makeBuffer(int width, int height, T* data) {
     // adjacent in y are separated by a scanline's worth of pixels in
     // memory.
     buf.stride[1] = width;
-    
+
     // buf.stride[2] = width*height..., but unnecessary for this example
 
     // The extent tells us how large the image is in each dimension.
@@ -94,7 +94,7 @@ buffer_t makeBuffer(int width, int height, T* data) {
     // The elem_size field tells us how many bytes each element
     // uses. This is 4 for floats and 2 for type uint16_t
     buf.elem_size = sizeof(T);
-        
+
     return buf;
 }
 
@@ -111,7 +111,7 @@ int main(int argc, char *argv[]) {
     int width = im.getWidth(), height = im.getHeight();
 #else
     int width = 2048, height = 1489;
-    printf("[no load]");
+    printf("[skipping load of FITS data]\n");
 #endif
     printf("Loaded: %d x %d\n", width, height);
 
@@ -219,7 +219,7 @@ int main(int argc, char *argv[]) {
     // Now that we've setup all input and output buffers, it is now
     // time to call the main entrypoint function for the Halide
     // pipeline. Looking in the header file, it's signature is:
-    // 
+    //
     // int lincombo_aot(buffer_t *_image_buffer, buffer_t *_variance_buffer,
     //    buffer_t *_mask_buffer, buffer_t *_polynomialCoefficients_buffer,
     //    buffer_t *_kerParams_buffer, buffer_t *_combined_output_0_buffer,
