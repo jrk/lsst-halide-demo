@@ -103,6 +103,15 @@ int main(int argc, char *argv[]) {
     blur_image_help = blur_image_help/norm;
     blur_variance_help = blur_variance_help/(norm*norm);
 
+    //set the image edges
+    //image edge should be NAN, but this oddly isn't working 
+    Expr setEdge = x < boundingBox || y < boundingBox ||
+                   x > (image.width() - 1 - boundingBox) ||
+                   y > (image.height() - 1 - boundingBox);
+    blur_image_help = select(setEdge, INFINITY, blur_image_help); 
+    blur_variance_help = select(setEdge, INFINITY, blur_variance_help);
+    maskOutHelp = select(setEdge, 16, maskOutHelp);
+
     //Evaluate image, mask, and variance planes concurrently using a tuple
     Func combined_output ("combined_output");
     combined_output(x, y) = Tuple(blur_image_help, blur_variance_help, maskOutHelp);
