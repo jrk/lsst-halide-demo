@@ -5,6 +5,8 @@ HALIDE_INCLUDE ?= ${HALIDE_LIB}/../include
 CXX ?= g++
 HALIDE_CFLAGS ?= -std=c++11 -I ${HALIDE_INCLUDE} -L ${HALIDE_LIB} -lHalide
 
+.PHONY: clean
+
 #need to fix this, not working
 #-g is for debugging, check whether it should be in both statements
 #%.standalone1: %.o
@@ -24,3 +26,6 @@ linearCombination_aot_run: linearCombination_aot_run.cpp lincombo_aot.o
 
 run: linearCombination_aot_run
 	./linearCombination_aot_run
+
+clean:
+	rm -f lincombo_aot.o linearCombination_aot_run linearCombination_aot_compile
