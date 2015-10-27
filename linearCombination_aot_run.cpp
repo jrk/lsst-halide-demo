@@ -62,12 +62,11 @@ using namespace std;
  * presumably create your own helpers.
  */
 template <typename T>
-buffer_t makeBuffer(int width, int height, uint8_t* data) {
+buffer_t makeBuffer(int width, int height, T* data) {
     buffer_t buf = {0}; // initialize everything to 0
 
     // The host pointers point to the start of the image data:
-    // buf.host = reinterpret_cast<uint8_t*>(data);
-    buf.host = data;
+    buf.host = reinterpret_cast<uint8_t*>(data);
 
     // The stride in a dimension represents the number of elements in
     // memory between adjacent entries in that dimension. We have a
@@ -116,9 +115,9 @@ int main(int argc, char *argv[]) {
 #endif
     printf("Loaded: %d x %d\n", width, height);
 
-    uint8_t *image = new uint8_t[width*height*4];
-    uint8_t *variance = new uint8_t[width*height*4];
-    uint8_t *mask = new uint8_t[width*height*2];
+    float *image = new float[width*height];
+    float *variance = new float[width*height];
+    uint16_t *mask = new uint16_t[width*height];
 
 #ifdef USE_LSST_FITS_IO
     //Read image, converting all three planes to uint8_t arrays
@@ -131,30 +130,13 @@ int main(int argc, char *argv[]) {
     float curVariance;
     uint16_t curMask;
 
-    uint8_t *curImageUInt8Array;
-    uint8_t *curVarianceUInt8Array;
-    uint8_t *curMaskUInt8Array;
-
     for (int y = 0; y < height; y++) {
         afwImage::MaskedImage<float, lsst::afw::image::MaskPixel, lsst::afw::image::VariancePixel>::x_iterator inPtr = im.x_at(0, y);
         for (int x = 0; x < width; x++){
-            curImage = (*inPtr).image();
-            curVariance = (*inPtr).variance();
-            curMask = (*inPtr).mask();
+            image[y*width + x] = (*inPtr).image();
+            variance[y*width + x] = (*inPtr).variance();
+            mask[y*width + x] = (*inPtr).mask();
             inPtr++;
-
-            curImageUInt8Array = reinterpret_cast<uint8_t*>(&curImage);
-            curVarianceUInt8Array = reinterpret_cast<uint8_t*>(&curVariance);
-            curMaskUInt8Array = reinterpret_cast<uint8_t*>(&curMask);
-
-            for(int i = 0; i < 4; i++){
-                image[(y*width + x)*4 + i] = curImageUInt8Array[i];
-                variance[(y*width + x)*4 + i] = curVarianceUInt8Array[i];
-            }
-
-            for(int i = 0; i < 2; i++){
-                mask[(y*width + x)*2 + i] = curMaskUInt8Array[i];
-            }
         }
     }
 #endif
@@ -182,48 +164,41 @@ int main(int argc, char *argv[]) {
     // for now (dev, host_dirty, dev_dirty).
 
     //Let's allocate the memory where we want to write our output:
-    //for every pixel we need 4 image bytes, 4 variance bytes, and 2 mask bytes
-    uint8_t *image_output = new uint8_t[width*height*4];
-    uint8_t *variance_output = new uint8_t[width*height*4];
-    uint8_t *mask_output = new uint8_t[width*height*2];
+    float *image_output = new float[width*height];
+    float *variance_output = new float[width*height];
+    uint16_t *mask_output = new uint16_t[width*height];
 
     //And the memory to store our parameters:
     //We need num_kernels*num_poly_coeff floats for the polynomial coefficents
-    uint8_t *polynomial_coefficients = new uint8_t[num_kernels*num_poly_coeff*4];
+    float *polynomial_coefficients = new float[num_kernels*num_poly_coeff];
     //We need num_kernels*num_kernel_params kernel parameters (2 standard deviations
     //and a rotation per kernel in this case)
-    uint8_t *ker_params = new uint8_t[num_kernels*num_kernel_params*4];
+    float *ker_params = new float[num_kernels*num_kernel_params];
 
     // In AOT-compiled mode, Halide doesn't manage this memory for
     // you. You should use whatever image data type makes sense for
     // your application. Halide just needs pointers to it.
 
     // Now we make a buffer_t to represent our input and output.
-    buffer_t image_buf = makeBuffer<float>(width, height, &image[0]);
-    buffer_t variance_buf = makeBuffer<float>(width, height, &variance[0]);
-    buffer_t mask_buf = makeBuffer<uint16_t>(width, height, &mask[0]);
-    buffer_t poly_coef_buf = makeBuffer<float>(num_poly_coeff, num_kernels, &polynomial_coefficients[0]);
-    buffer_t ker_params_buf = makeBuffer<float>(num_kernel_params, num_kernels, &ker_params[0]);
-    buffer_t image_output_buf = makeBuffer<float>(width, height, &image_output[0]);
-    buffer_t variance_output_buf = makeBuffer<float>(width, height, &variance_output[0]);
-    buffer_t mask_output_buf = makeBuffer<uint16_t>(width, height, &mask_output[0]);
+    buffer_t image_buf = makeBuffer(width, height, &image[0]);
+    buffer_t variance_buf = makeBuffer(width, height, &variance[0]);
+    buffer_t mask_buf = makeBuffer(width, height, &mask[0]);
+    buffer_t poly_coef_buf = makeBuffer(num_poly_coeff, num_kernels, &polynomial_coefficients[0]);
+    buffer_t ker_params_buf = makeBuffer(num_kernel_params, num_kernels, &ker_params[0]);
+    buffer_t image_output_buf = makeBuffer(width, height, &image_output[0]);
+    buffer_t variance_output_buf = makeBuffer(width, height, &variance_output[0]);
+    buffer_t mask_output_buf = makeBuffer(width, height, &mask_output[0]);
 
     //Now we set the polynomial coeffecients
     float curCoef;
-    uint8_t *curCoefUInt8Array;
 
     //we are storing polynomial coefficients as poly_coef_buf(coef#, kernel#)
-    for (int y = 1; y <= num_kernels; y++) {
-        int yy = y-1;
-        for (int x = 1; x <= num_poly_coeff; x++){
-            int xx = x-1;
+    for (int y = 0; y < num_kernels; y++) {
+        int yy = y+1;
+        for (int x = 0; x < num_poly_coeff; x++){
+            int xx = x+1;
             curCoef = (float)y + ((float)x)/1000.0f;
-            curCoefUInt8Array = reinterpret_cast<uint8_t*>(&curCoef);
-
-            for(int i = 0; i < 4; i++){
-                polynomial_coefficients[(yy*num_poly_coeff + xx)*4 + i] =
-                    curCoefUInt8Array[i];
-            }
+            polynomial_coefficients[y*num_poly_coeff + x] = curCoef;
         }
     }
 
@@ -232,16 +207,12 @@ int main(int argc, char *argv[]) {
     uint8_t *curParamUInt8Array;
 
     //we are storing kernel parameters as ker_params_buf(param#, kernel#)
-    for (int y = 1; y <= num_kernels; y++) {
-        int yy = y - 1;
-        for (int x = 1; x <= num_kernel_params; x++){
-            int xx = x - 1;
-            curParam = (float)y + ((float)x)/1000.0f;
-            curParamUInt8Array = reinterpret_cast<uint8_t*>(&curParam);
-
-            for(int i = 0; i < 4; i++){
-                ker_params[(yy*num_kernel_params + xx)*4 + i] = curParamUInt8Array[i];
-            }
+    for (int y = 0; y < num_kernels; y++) {
+        int yy = y + 1;
+        for (int x = 0; x < num_kernel_params; x++){
+            int xx = x + 1;
+            curParam = (float)yy + ((float)xx)/1000.0f;
+            ker_params[y*num_kernel_params + x] = curParam;
         }
     }
 
