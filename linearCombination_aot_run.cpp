@@ -123,9 +123,9 @@ int main(int argc, char *argv[]) {
 
     // And the memory where we want to write our output:
     //for every pixel we need 4 image bytes, 4 variance bytes, and 2 mask bytes
-    uint8_t image_output[width*height*4];
-    uint8_t variance_output[width*height*4];
-    uint8_t mask_output[width*height*2];
+    uint8_t* image_output = new uint8_t[width*height*4];
+    uint8_t* variance_output = new uint8_t[width*height*4];
+    uint8_t* mask_output = new uint8_t[width*height*2];
 
 
     // In AOT-compiled mode, Halide doesn't manage this memory for
