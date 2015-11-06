@@ -1,0 +1,25 @@
+# This makefile is configured for Linux.  It should work if you download a Halide binary
+# and move the Halide folder into the same folder you cloned /lsst-halide-demo into.
+HALIDE_LIB ?= ../halide/bin
+HALIDE_INCLUDE ?= ${HALIDE_LIB}/../include
+CXX ?= g++
+HALIDE_CFLAGS ?= -std=c++11 -I ${HALIDE_INCLUDE} -L ${HALIDE_LIB} -lHalide -lpthread -ldl
+
+.PHONY: clean
+
+linearCombination_aot_compile: linearCombination_aot_compile.cpp
+	$(CXX) $< $(HALIDE_CFLAGS) -g -o $@
+
+linearCombination_aot_run: linearCombination_aot_run.cpp lincombo_aot.o
+	@echo "Compiling application, linking against Halide kernel..."
+	$(CXX) $^ -g -lpthread -o $@
+
+lincombo_aot.o: linearCombination_aot_compile
+	@echo "Generating Halide kernel..."
+	LD_LIBRARY_PATH=${HALIDE_LIB} ./linearCombination_aot_compile
+
+run: linearCombination_aot_run
+	./linearCombination_aot_run
+
+clean:
+	rm -f lincombo_aot.o linearCombination_aot_run linearCombination_aot_compile
